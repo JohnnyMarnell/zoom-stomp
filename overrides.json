@@ -5,11 +5,16 @@
   "SuperCho.0.E.LVL": 80,
   "SuperCho.2.Depth": 78,
   "SuperCho.1.Rate": 84,
-  "OctFuzz.0.VOL": 26,
+  "OctFuzz.0.VOL": 37,
   "OctFuzz.1.COLOR": 1,
   "OctFuzz.2.BOOST": 16,
   "AutoWah.0.Sense": 47,
   "Flanger.0.Depth": 53,
   "SlapBackD.0.TIME": 99,
-  "ICE Delay.3.INTVL": 0
+  "ICE Delay.3.INTVL": 0,
+  "Tremolo.2.Level": 97,
+  "Tremolo.1.Rate": 18,
+  "RC Boost.0.GAIN": 59,
+  "Tremolo.0.Depth": 83,
+  "RC Boost.3.VOL": 49
 }

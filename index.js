@@ -16,14 +16,13 @@ class ZoomMultistomp {
     constructor(opts) {
         this.opts = opts = Object.assign({}, {
             patchNumber: 48,
-            controller: /.*/ig,
-            fx: ["T Scream", "Rc Boost"],
+            fx: ["T Scream", "RC Boost"],
             tunerEvent: "midi.cc.*.31",
             patchEvent: "midi.cc.*",
             patchEventStart: 20,
         }, opts)
-        
-        this.controller = new MidiIn({pattern: opts.controller})
+
+    this.controller = opts.controller || new MidiIn({pattern: /.*/})
         this.zoomPedalInput = new MidiIn({pattern: /Zoom/ig})
         this.zoomPedal = new MidiOut({pattern: /Zoom/ig}).rtmSend(ZOOM.ENABLE_MESSAGE)
         this.patch = Object.assign(new ZoomUtilityPatch(), {name: "j5alive"})
@@ -93,20 +92,18 @@ class ZoomMultistomp {
 
     findEffect(name) {
         let [id, fx] = Object.entries(ZoomUtilityAllFx).find(([id, fx]) => fx.name.match(new RegExp(name, "ig")))
-        this.effects[name] = {id: id, name: name, fx: fx, on: false }
-        console.log(`Found "${name}": ${id} ${fx.name} - ${fx.title}`)
+        this.effects[fx.name] = {id: id, name: fx.name, fx: fx, on: false }
+        console.log(`Found "${fx.name}": ${id} ${fx.name} - ${fx.title}`)
     }
 
     buildZoomDeviceBinary(fx) {
-        let deviceArray = [1, fx.id], i = 2
-        deviceArray.fill(0, i, 6)
+        let deviceArray = [1, fx.id, 0,0,0, 0,0,0, 0,0,0], i = 2
         fx.fx.param.forEach(p => deviceArray[i++] = p.def)
         return deviceArray
     }
 
     selectHandler(index, fx) {
         return (msg) => {
-            // console.log('wtf zoom controller select handler', msg)
             fx.on = msg.value >= 64
             this.patch.fx = ZOOM.EMPTY_PATCH.slice(0)
             let fxChainIndex = 0
@@ -125,21 +122,30 @@ class ZoomMultistomp {
             if (fx.on) {
                 this.lastFx = fx.name
             } else if (fxChain.length) {
-                this.lastFx = fxChain[0]
+                this.lastFx = fxChain[fxChain.length - 1]
             } else {
                 this.lastFx = null
             }
 
-            let patchBinary = this.patch.MakeBin(ZOOM.MS_60_ID, ZoomUtilityAllFx)
             console.log("FX chain:", fxChain.join(', '), "Last:", this.lastFx)
-            this.zoomPedal.rtmSend(patchBinary)
+            this.sendPatchBinary()
         }
+    }
+
+    sendPatchBinary() {
+        this.zoomPedal.rtmSend(this.patch.MakeBin(ZOOM.MS_60_ID, ZoomUtilityAllFx))
+    }
+
+    knob(index, value) {
+        this.patch.fx[this.patch.curfx][2 + index] = value
+        this.sendPatchBinary()
     }
 
     static defaultInstance() {
         return new ZoomMultistomp({
             overridesFile: `${__dirname}/overrides.json`,
-            controller: /Keith|soft.*step|sscom.*1/ig,
+            // controller: new MidiIn({pattern: /Keith|soft.*step|sscom.*1/ig}), tunerEvent: "midi.cc.*.31", patchEvent: "midi.cc.*", patchEventStart: 20,
+            controller: new MidiIn({pattern: /Launch.*MIDI/ig, momentaryToggle: [104,105,106,107,108,109]}), tunerEvent: "midi.cc.*.31", patchEvent: "midi.cc.*", patchEventStart: 104,
             fx: "AutoWah|Rc Boost|OctFuzz|Tremolo|SlapBack|Flanger|T Scream|SuperCho|Delay|Phaser".split("|"),
         })
     }
@@ -148,5 +154,15 @@ class ZoomMultistomp {
 module.exports = ZoomMultistomp
 
 if (require.main === module) {
-    ZoomMultistomp.defaultInstance()
+    let stomp = ZoomMultistomp.defaultInstance()
+    // tmp, experimenting with controlling fx parameters
+    let last = null, current = null
+    stomp.controller.on('midi.cc.*.21', msg => current = Math.floor(msg.value / 128 * 51))
+    stomp.controller.on('midi.cc.*.22', msg => current = Math.floor(msg.value / 128 * 51))
+    setInterval(() => {
+        if (last != current) {
+            last = current
+            stomp.knob(1, last)
+        }
+    }, 50)
 }
